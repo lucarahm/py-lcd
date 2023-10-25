@@ -55,6 +55,7 @@ En = 0b00000100  # Enable bit
 Rw = 0b00000010  # Read/Write bit
 Rs = 0b00000001  # Register select bit
 
+
 class I2CDevice:
     def __init__(self, addr=None, addr_default=None, bus=BUS_NUMBER):
         if not addr:
@@ -101,8 +102,14 @@ class Lcd:
     def __init__(self, addr=None):
         self.addr = addr
         self.lcd = I2CDevice(addr=self.addr, addr_default=0x27)
+        self._backlightval = LCD_BACKLIGHT  # backlight on by default
+        # Give 50ms after power raise above 2.7V
+        sleep(50 / 1000)
+        # we start in 8bit mode, try to set 4 bit mode
         self.lcd_write(0x03)
+        sleep(4.5 / 1000)
         self.lcd_write(0x03)
+        sleep(4.5 / 1000)
         self.lcd_write(0x03)
         self.lcd_write(0x02)
         self.lcd_write(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
@@ -113,13 +120,13 @@ class Lcd:
 
     # clocks EN to latch command
     def lcd_strobe(self, data):
-        self.lcd.write_cmd(data | En | LCD_BACKLIGHT)
+        self.lcd.write_cmd(data | En | self._backlightval)
         sleep(.0005)
-        self.lcd.write_cmd(((data & ~En) | LCD_BACKLIGHT))
+        self.lcd.write_cmd(((data & ~En) | self._backlightval))
         sleep(.0001)
 
     def lcd_write_four_bits(self, data):
-        self.lcd.write_cmd(data | LCD_BACKLIGHT)
+        self.lcd.write_cmd(data | self._backlightval)
         self.lcd_strobe(data)
 
     # write a command to lcd
@@ -164,16 +171,20 @@ class Lcd:
 
     # clear lcd and set to home
     def lcd_clear(self):
+        self._backlightval = LCD_NOBACKLIGHT
         self.lcd_write(LCD_CLEARDISPLAY)
         self.lcd_write(LCD_RETURNHOME)
+        sleep(10 / 1000)
 
     # backlight control (on/off)
     # options: lcd_backlight(1) = ON, lcd_backlight(0) = OFF
     def lcd_backlight(self, state):
         if state == 1:
-            self.lcd.write_cmd(LCD_BACKLIGHT)
+            self._backlightval = LCD_BACKLIGHT
         elif state == 0:
-            self.lcd.write_cmd(LCD_NOBACKLIGHT)
+            self._backlightval = LCD_NOBACKLIGHT
+        self.lcd.write_cmd(self._backlightval)
+
 
 class CustomCharacters:
     def __init__(self, lcd):
